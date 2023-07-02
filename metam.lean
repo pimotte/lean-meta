@@ -45,7 +45,7 @@ elab "explore" : tactic => do
 
 theorem red (hA : 1 = 1) (hB : 2 = 2) : 2 = 2 := by
   explore
-
+∀ (a : Prop) (b : Prop), a ∨ b → b → a ∧ a
 def checkExpr (e1 : Expr) (e2 : Expr) : MetaM Unit := do
   IO.println s!"  isDefEq: { ← isDefEq e1 e2}"
 
@@ -70,3 +70,46 @@ def checkExpr (e1 : Expr) (e2 : Expr) : MetaM Unit := do
       (.lam `z (.const ``Nat []) (.bvar 0) .default))
 
   checkExpr litExp compExp
+
+
+def unidiomatic : Expr :=
+  .forallE `n (.const ``Nat []) (mkApp3 (.const ``Eq [.succ .zero]) (.const ``Nat []) (.bvar 0) 
+     (mkApp2 (.const ``Nat.add []) (.bvar 0) (.lit (.natVal 1)))) .default
+
+def idomatic : MetaM Expr :=
+  withLocalDecl `n .default (.const ``Nat []) fun n => do
+    let eqn ← mkEq (n) (← mkAppM ``Nat.add #[n , .lit (.natVal 1)])
+    mkForallFVars #[n] eqn
+
+#eval show MetaM Unit from do
+  let aType ← inferType (.lit (.natVal 1))
+  let u ← getLevel aType
+  IO.println s!"  Level: {u}"
+  let e2 ← idomatic
+  IO.println s!"  unidomatic: {unidiomatic}"
+  IO.println s!"  idomatic: {e2}"
+  checkExpr unidiomatic e2
+ 
+
+def f_n_expr : MetaM Expr := do
+  let funType ← mkArrow (.const ``Nat []) (.const ``Nat [])
+  withLocalDecl `f .default funType fun f => do
+    let feq ← withLocalDecl `n .default (.const ``Nat []) fun n => do
+      let lhs := .app f n
+      let rhs := .app f (← mkAppM ``Nat.add #[n , .lit (.natVal 1)])
+      let eq ← mkEq lhs rhs
+      mkForallFVars #[n] eq
+    mkLambdaFVars #[f] feq
+
+#eval show Lean.Elab.Term.TermElabM _ from do
+  let stx : Syntax ← `(∀ (a : Prop) (b : Prop), a ∨ b → b → a ∧ a)
+  let expr ← Elab.Term.elabTermAndSynthesize stx none
+
+  let (_, _, conclusion) ← forallMetaTelescope expr
+  dbg_trace conclusion -- a ∨ b → b → a ∧ a
+
+  let (_, _, conclusion) ← forallMetaBoundedTelescope expr 2
+  dbg_trace conclusion --  a ∨ b → b → a ∧ a
+
+  let (_, _, conclusion) ← lambdaMetaTelescope expr
+  dbg_trace conclusion -- ∀ (a : Prop) (b : Prop), a ∨ b → b → a ∧ a
