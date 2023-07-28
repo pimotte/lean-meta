@@ -34,6 +34,10 @@ namespace c
   #check red red red 4
   #check red blue 4
   #check blue blue blue 12
+
+  syntax (name := help) "#better_help" "option" (ident)? : command
+-- our "elaboration function" that infuses syntax with semantics
+@[command_elab help] def elabHelp : CommandElab := λ stx => Lean.logInfo "success!"
 end c
 
 namespace d 
@@ -49,7 +53,7 @@ open d
 
 #eval goodmorning
 hello
-
+#better_help option 
 def testFun : True := by 
   yellow
   trivial
